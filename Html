@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>50音を表示するデモ</title>
+<style>
+  body {
+    font-family: "Hiragino Kaku Gothic Pro", Meiryo, system-ui, sans-serif;
+    padding: 24px;
+    background: #f7f7fb;
+    color: #222;
+  }
+  .card {
+    max-width: 640px;
+    margin: 0 auto;
+    background: white;
+    padding: 18px;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(20,20,40,0.06);
+  }
+  h1 { margin: 0 0 12px 0; font-size: 18px; }
+  .controls { margin-bottom: 12px; display:flex; gap:8px; align-items:center; }
+  button {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #d0d6e6;
+    background: #fff;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:active { transform: translateY(1px); }
+  #grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(5, 1fr);
+    margin-top: 12px;
+  }
+  .cell {
+    background: #f2f6ff;
+    border-radius: 8px;
+    padding: 18px 6px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: 600;
+    user-select: none;
+  }
+  /* や行は3列のため見た目調整 */
+  .ya-row { grid-column: span 3; justify-self: start; display:inline-grid; grid-auto-flow: column; gap:8px; }
+  .meta { font-size: 13px; color: #666; margin-left: 8px; }
+  .hidden { display: none; }
+  footer { margin-top: 14px; font-size: 13px; color:#666; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>五十音（50音）デモ</h1>
+    <div class="controls">
+      <button id="toggleBtn">表示する</button>
+      <button id="shuffleBtn">並び替え（ランダム）</button>
+      <button id="resetBtn">並びを戻す</button>
+      <span class="meta">ボタンを押すと50音が下に表示されます。</span>
+    </div>
+
+    <div id="grid" class="hidden" aria-live="polite"></div>
+
+    <footer>保存して使いたいならそのまま `.html` に保存してブラウザで開いてください。</footer>
+  </div>
+
+<script>
+(() => {
+  // 五十音（現代かな配列）
+  const gojuon = [
+    "あ","い","う","え","お",
+    "か","き","く","け","こ",
+    "さ","し","す","せ","そ",
+    "た","ち","つ","て","と",
+    "な","に","ぬ","ね","の",
+    "は","ひ","ふ","へ","ほ",
+    "ま","み","む","め","も",
+    // や行（や・ゆ・よ）を行として見せるために一時的に続ける
+    "や","ゆ","よ",
+    "ら","り","る","れ","ろ",
+    "わ","を","ん"
+  ];
+
+  // 初期表示用の順序（配列をそのまま使う）
+  let current = [...gojuon];
+
+  const grid = document.getElementById('grid');
+  const toggleBtn = document.getElementById('toggleBtn');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  function render(arr) {
+    grid.innerHTML = '';
+    // 表示を5列グリッドに合わせつつ、や行だけ幅を調整して見やすくする
+    arr.forEach((k, i) => {
+      const div = document.createElement('div');
+      div.className = 'cell';
+      div.textContent = k;
+      grid.appendChild(div);
+    });
+
+    // 見た目のため、や行(やゆよ)を一塊に並べ替えて左寄せ表示にする
+    // 実現のために最後の要素群を調整（簡易的）
+    // ※これは純粋なテーブル再現ではなくビジュアル目的の処理です
+    const cells = Array.from(grid.children);
+    const yaIndices = [];
+    // find indices of やゆよ
+    cells.forEach((c, idx) => {
+      if (["や","ゆ","よ"].includes(c.textContent)) yaIndices.push(idx);
+    });
+    if (yaIndices.length === 3) {
+      // 抜き出して先頭から2列目あたりに移動（ビジュアル）
+      const yaGroup = yaIndices.map(i => grid.children[i]).map(n => n.cloneNode(true));
+      // remove originals from end to start
+      for (let j = yaIndices.length -1; j >=0; j--) grid.removeChild(grid.children[yaIndices[j]]);
+      // insert the group at position 35 (after 7 rows * 5 = 35) or at end if not enough
+      const insertPos = Math.min(35, grid.children.length);
+      yaGroup.forEach((node, idx) => {
+        node.style.display = 'inline-block';
+        node.style.minWidth = '58px';
+        grid.insertBefore(node, grid.children[insertPos + idx] || null);
+      });
+    }
+  }
+
+  function shuffleArray(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    const isHidden = grid.classList.contains('hidden');
+    if (isHidden) {
+      render(current);
+      grid.classList.remove('hidden');
+      toggleBtn.textContent = '非表示にする';
+    } else {
+      grid.classList.add('hidden');
+      toggleBtn.textContent = '表示する';
+    }
+  });
+
+  shuffleBtn.addEventListener('click', () => {
+    // シャッフルして再描画（ただしやゆよはまとまりが崩れる場合あり）
+    shuffleArray(current);
+    render(current);
+    if (grid.classList.contains('hidden') === false) {
+      // 既に表示中なら再描画のまま
+    } else {
+      grid.classList.remove('hidden');
+      toggleBtn.textContent = '非表示にする';
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    current = [...gojuon];
+    render(current);
+    if (grid.classList.contains('hidden')) {
+      grid.classList.remove('hidden');
+      toggleBtn.textContent = '非表示にする';
+    }
+  });
+
+  // キーボードで Enter 押すと表示切替（アクセシビリティ向上）
+  toggleBtn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') toggleBtn.click();
+  });
+
+  // 初回は非表示（ユーザーがボタンを押すまで出さない）
+})();
+</script>
+</body>
+</html>
